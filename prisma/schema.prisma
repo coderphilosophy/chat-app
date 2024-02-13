@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id String @id @default(auto()) @map("_id") @db.ObjectId //@id indicates that this is the primary key for the User model.
+  name String?// the field is optional because we are allowing google and github login as well. 
+  email String? @unique
+  emailVerified DateTime?
+  image String?
+  hashedPassword String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  conversationIds String[] @db.ObjectId //specifies that the elements of conversationIds are of the type db.ObjectId. This is mongodb's default type for storing unique identifiers.
+  conversations Conversation[] @relation(fields: [conversationIds], references: [id])
+ 
+  seenMessageIds String[] @db.ObjectId
+  seenMessages Message[] @relation("Seen", fields: [seenMessageIds], references: [id])//It specifies that the seenMessages field in the User model is related to the Message model with the relationship name "Seen". The fields parameter specifies that the relationship is based on the seenMessageIds field in the User model, while the references parameter specifies that the relationship is based on the id field in the Message model.
+
+  accounts Account[]
+  messages Message[]
+}
+
+model Account{
+  id String @id @default(auto()) @map("_id") @db.ObjectId 
+  userId String @db.ObjectId
+  type String
+  provider String //represents the authentication provider associated with the account. (example could be google, github)
+  providerAccountId String //unique identifier assigned to the user by the authentication provider.
+  refresh_token String? @db.String
+  access_token String? @db.String
+  expires_at Int?
+  token_type String?
+  scope String?
+  id_token String? @db.String
+  session_state String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)// here it establishes the relation between userId from the account model to the id field in the User model. onDelete Cascade means that if the user is deleted, then all associated accounts will also be deleted.
+
+  @@unique([provider, providerAccountId])// with this we are ensuring that no two accounts have the same combination of provider and providerAccountId values.
+}
+
+model Conversation{
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  createdAt DateTime @default(now())
+  lastMessageAt DateTime @default(now())
+  name String?
+  isGroup Boolean?
+
+  messageIds String[] @db.ObjectId
+  messages Message[]
+
+  userIds String[] @db.ObjectId
+  user User[] @relation(fields: [userIds], references: [id])
+}
+
+model Message{
+  id String @id @default(auto()) @map("_id") @db.ObjectId
+  body String?
+  image String?
+  createdAt DateTime @default(now())
+
+  seenIds String[] @db.ObjectId
+  seen User[] @relation("Seen", fields: [seenIds], references: [id])
+
+  conversationId String @db.ObjectId
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  senderId String @db.ObjectId
+  sender User @relation(fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+
+
+//MEANING OF id String @id @default(auto()) @map("_id") @db.ObjectId
+// id: This is the name of the field in the User model. It represents the unique identifier for each user.
+
+// String: This specifies the data type of the id field. In this case, it's a String. Despite MongoDB's default use of ObjectId for _id fields, Prisma allows flexibility in defining the data type. However, for compatibility with MongoDB, it's often convenient to use String as the data type.
+
+// @id: This is an attribute annotation in Prisma that indicates that this field is the primary key for the User model. It means that each user will have a unique value for this field, and it will be used as the primary means of identifying users.
+
+// @default(auto()): This annotation specifies that the value for this field will be automatically generated. When a new User record is created, Prisma will automatically generate a unique value for the id field.
+
+// @map("_id"): This annotation is specific to MongoDB and tells Prisma to map this field to the _id field in the MongoDB collection. MongoDB uses _id as the default field name for primary keys. By specifying @map("_id"), you're instructing Prisma to use _id as the primary key in the MongoDB collection.
+
+// @db.ObjectId: This annotation tells Prisma that the id field should be treated as an ObjectId type in MongoDB. ObjectId is a specific type used by MongoDB for unique identifiers. By adding this annotation, Prisma ensures that the value generated for the id field conforms to the ObjectId format expected by MongoDB.
